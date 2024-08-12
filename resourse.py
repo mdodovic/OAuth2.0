@@ -232,8 +232,29 @@ def create_client(cid, csecret):
         session.commit()
         return jsonify({'message': 'Client created successfully!'})
 
+
+def create_admin_client():
+    """
+    Create an admin client
+    """
+    with app.app_context():
+        client = Client(
+            client_id='admin_client',
+            client_secret='admin_secret',
+            grant_type='client_credentials',
+            token_endpoint_auth_method='client_secret_basic'
+        )
+        existing_admin_client = session.query(Client).filter_by(client_id='admin_client').first()
+        if existing_admin_client:
+            return jsonify({'message': 'Admin client already exists!'})
+        session.add(client)
+        session.commit()
+        return jsonify({'message': 'Admin client created successfully!'})
+
+
 # Main block to run the Flask app
 if __name__ == '__main__':
     # Create admin client
+    create_admin_client()
     #create_client('client_id_test', 'client_secret_test')
     app.run(host='0.0.0.0', port=5003, debug=True)
