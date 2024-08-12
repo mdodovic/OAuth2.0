@@ -20,6 +20,8 @@ os.environ['AUTHLIB_INSECURE_TRANSPORT'] = '1'
 # Flask app setup
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'supersecret'
+
+# Here it is decided to use SQLite for the sake of simplicity
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///oauth_db.db'
 
 # Database setup
@@ -29,12 +31,6 @@ Session = sessionmaker(bind=engine)
 session = Session()
 
 # Database Models
-class User(Base):
-    __tablename__ = 'users'
-    id = Column(Integer, primary_key=True)
-    username = Column(String, unique=True, nullable=False)
-    password = Column(String, nullable=False)
-
 class Client(Base):
     __tablename__ = 'clients'
     id = Column(Integer, primary_key=True)
@@ -51,23 +47,29 @@ class Token(Base):
     token_type = Column(String, nullable=False)
     scope = Column(String)
     expires_in = Column(Integer)
-    user_id = Column(Integer, ForeignKey('users.id'))
     created_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
 
     def is_expired(self):
-        # Calculate the expiration time based on the creation time and the expires_in field
+        """
+        Calculate if the token is expired
+        """
         creation_time = datetime.fromtimestamp(self.created_at, tz=timezone.utc)
         expiration_time = creation_time + timedelta(seconds=self.expires_in)
         return datetime.now(timezone.utc) > expiration_time
 
     def is_revoked(self):
+        """ 
+        Check if the token is revoked
+        """
+        # In this example, we do not revoke tokens
         return False
     
     def get_scope(self):
+        """
+        Get the scope of the token
+        """
         return self.scope
     
-
-
 # Initialize the database
 Base.metadata.drop_all(engine, tables=[Token.__table__])
 Base.metadata.create_all(engine)
@@ -76,78 +78,73 @@ Base.metadata.create_all(engine)
 class ClientCredentialsGrant(grants.ClientCredentialsGrant):
     @staticmethod
     def check_token_endpoint(request):
-        print(f"DEBUG: check_token_endpoint method called with \n{request} \n{request.data}")  # Debugging: Ensure this line is printed
-        # This method checks if the grant should handle the current token request
-        print(f"DEBUG NOVI: {request.grant_type == 'client_credentials'}")
+        """
+        Check if the request is a token endpoint request
+        """
         return request.grant_type == 'client_credentials'
 
 
     @staticmethod
     def check_authorization_endpoint(request):
-        print(f"DEBUG: check_authorization_endpoint method called {request}")  # Ensure this is called
-        # Return False as this grant does not handle authorization endpoint requests
+        """
+        Check if the request is an authorization endpoint request
+        """
+        # This grant does not support authorization endpoint requests
         return False
 
     def validate_token_request(self):
-        print("DEBUG: authenticate_client method called")
+        """ 
+        Validate the token request
+        """
         client_id = request.form['client_id']
         client_secret = request.form['client_secret']
-        print(f"DEBUG: Received client_id: {client_id}")  # Debugging: Print received client_id
-        print(f"DEBUG: Received client_secret: {client_secret}")  # Debugging: Print received client_secret
-
         client = session.query(Client).filter_by(client_id=client_id).first()
         if client:
-            print(f"DEBUG: Found client in DB: client_id={client.client_id}, client_secret={client.client_secret}")
             if client.client_secret == client_secret:
-                print("DEBUG: Client secret matches.")
                 return client
             else:
-                print("DEBUG: Client secret does not match.")
+                InvalidGrantError(description='DEBUG: Client secret does not match')
         else:
-            print("DEBUG: Client not found in DB.")
+            InvalidGrantError(description='Client not found in DB')
         raise InvalidGrantError(description='Invalid client credentials')
 
 
-# Function to query the client
 def query_client(client_id):
-    client = session.query(Client).filter_by(client_id=client_id).first()
-    if client:
-        print(f"DEBUG: Client found in DB: {client.client_id}")
-    else:
-        print(f"DEBUG: Client not found in DB for client_id: {client_id}")
-    return client
+    """
+    Query the client from the database
+    """
+    return session.query(Client).filter_by(client_id=client_id).first()
 
-# Function to save the token
+
 def save_token(token, request):
-    print(f"DEBUG: {token} {request}\n")
-    print(f"DEBUG: {request.data}\n")
-    print(f"DEBUG: {request.data.get('client_id')}\n")
-
+    """
+    Save the token to the database
+    """
     if request.data is None:
-        print("DEBUG: request.data is None")
-        raise InvalidGrantError(description='data authentication failed')
-
-    print(f"DEBUG: Saving token for client_id={request.data.get('client_id')}")
+        raise InvalidGrantError(description='Data authentication failed')
     item = Token(
         client_id=request.data.get('client_id'),
         access_token=token['access_token'],
         token_type=token['token_type'],
         scope=token.get('scope'),
-        expires_in=token['expires_in'],
-        user_id=None#request.client.user_id
+        expires_in=token['expires_in']
     )
     session.add(item)
     session.commit()
-    print("DEBUG: Token saved to database.")
 
 # Initialize Authorization Server
 authorization = AuthorizationServer(
     query_client=query_client,
     save_token=save_token,
 )
+
+# Register the Client Credentials Grant
 authorization.register_grant(ClientCredentialsGrant)
 
 def generate_bearer_token(grant_type, client, user=None, scope=None, expires_in=None, include_refresh_token=True):
+    """
+    Generate a Bearer Token
+    """
     token = {
         'token_type': 'Bearer',
         'access_token': secrets.token_urlsafe(48),  # Generate a random access token
@@ -165,6 +162,9 @@ authorization.register_token_generator('default', generate_bearer_token)
 
 # Custom Bearer Token Validator
 class BearerTokenValidator(_BearerTokenValidator):
+    """
+    Custom Bearer Token Validator
+    """
     def __init__(self):
         super().__init__(token_model=Token)
 
@@ -185,9 +185,13 @@ require_oauth = ResourceProtector()
 bearer_token_validator = BearerTokenValidator()
 require_oauth.register_token_validator(bearer_token_validator)
 
-# Route to issue a token
+
+# Routes
 @app.route('/oauth/token', methods=['POST'])
 def issue_token():
+    """
+    Issue a token
+    """
     scope = 'profile'  # Specify the required scope here
     print("DEBUG: issue_token called")  # Ensure this line is printed
     try:
@@ -203,28 +207,33 @@ def issue_token():
         return jsonify({"error": "Unexpected error occurred"}), 500
 
 
-# Protected resource endpoint
 @app.route('/api/resource', methods=['GET'])
 @require_oauth('profile')
 def api_resource():
+    """
+    Protected Resource
+    """
     return jsonify({'message': 'Hello, World!'})
 
 
-# Route to create a client
-#@app.route('/create_client', methods=['POST'])
-# def create_client(cid, csecret):
-#     with app.app_context():
-#         client = Client(
-#             client_id=cid,
-#             client_secret=csecret,
-#             grant_type='client_credentials',
-#             token_endpoint_auth_method='client_secret_basic'
-#         )
-#         session.add(client)
-#         session.commit()
-#         return jsonify({'message': 'Client created successfully!'})
+@app.route('/create_client', methods=['POST'])
+def create_client(cid, csecret):
+    """
+    Create a new client
+    """
+    with app.app_context():
+        client = Client(
+            client_id=cid,
+            client_secret=csecret,
+            grant_type='client_credentials',
+            token_endpoint_auth_method='client_secret_basic'
+        )
+        session.add(client)
+        session.commit()
+        return jsonify({'message': 'Client created successfully!'})
 
 # Main block to run the Flask app
 if __name__ == '__main__':
+    # Create admin client
     #create_client('client_id_test', 'client_secret_test')
     app.run(host='0.0.0.0', port=5003, debug=True)
