@@ -193,7 +193,6 @@ def issue_token():
     Issue a token
     """
     scope = 'profile'  # Specify the required scope here
-    print("DEBUG: issue_token called")  # Ensure this line is printed
     try:
         resp = authorization.create_token_response()
         print(resp)
@@ -228,6 +227,34 @@ def create_client(cid, csecret):
             grant_type='client_credentials',
             token_endpoint_auth_method='client_secret_basic'
         )
+        session.add(client)
+        session.commit()
+        return jsonify({'message': 'Client created successfully!'})
+
+
+@app.route('/register-client', methods=['POST'])
+@require_oauth('profile')
+def register_client():
+    """
+    Register a new client
+    """
+    data = request.get_json()
+    client_id = data.get('client_id')
+    client_secret = data.get('client_secret')
+    grant_type = 'client_credentials'
+    token_endpoint_auth_method = 'client_secret_basic'
+
+    with app.app_context():
+        client = Client(
+            client_id=client_id,
+            client_secret=client_secret,
+            grant_type=grant_type,
+            token_endpoint_auth_method=token_endpoint_auth_method
+        )
+        existing_client = session.query(Client).filter_by(client_id=client_id).first()
+        if existing_client:
+            return jsonify({'message': 'Client already exists!'}), 400
+
         session.add(client)
         session.commit()
         return jsonify({'message': 'Client created successfully!'})
