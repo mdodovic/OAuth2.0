@@ -6,6 +6,7 @@ from authlib.integrations.flask_oauth2 import AuthorizationServer, ResourceProte
 from authlib.oauth2.rfc6749 import grants
 from authlib.oauth2.rfc6749.errors import InvalidGrantError, InsecureTransportError
 from authlib.oauth2.rfc6750 import BearerTokenValidator as _BearerTokenValidator
+from authlib.oauth2.rfc7662 import IntrospectionEndpoint
 from authlib.integrations.sqla_oauth2 import create_query_client_func, create_save_token_func
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -192,17 +193,14 @@ def issue_token():
     """
     Issue a token
     """
-    scope = 'profile'  # Specify the required scope here
+    scope = 'profile'  # Specify the required scope here NOT USED 
     try:
-        resp = authorization.create_token_response()
-        print(resp)
-        return resp
+        return authorization.create_token_response()
     except InsecureTransportError:
         return jsonify({"error": "Insecure transport detected. Please use HTTPS or set OAUTHLIB_INSECURE_TRANSPORT=1 for development."}), 400
     except InvalidGrantError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
-        print("DEBUG: Unexpected error:", str(e))
         return jsonify({"error": "Unexpected error occurred"}), 500
 
 
@@ -279,9 +277,47 @@ def create_admin_client():
         return jsonify({'message': 'Admin client created successfully!'})
 
 
+class MyIntrospectionEndpoint(IntrospectionEndpoint):
+    def query_token(self, token, token_type_hint):
+        # Example: Replace with actual token lookup in your database
+        token_data = session.query(Token).filter_by(access_token=token).first()
+        if token_data and not token_data.is_expired():
+            return token_data
+        return None
+
+    def introspect_token(self, token_data):
+        if token_data:
+            return {
+                "active": True,
+                "client_id": token_data.client_id,
+                "token_type": token_data.token_type,
+                "scope": token_data.scope,
+                "expires_in": token_data.expires_in,
+                "created_at": token_data.created_at,
+                "is_expired": token_data.is_expired(),
+                "is_revoked": token_data.is_revoked()
+            }
+        return {"active": False}
+
+
+# Add the introspection endpoint
+@app.route('/oauth/introspect', methods=['POST'])
+@require_oauth('profile')
+def check_token():
+    token = request.form.get('token')
+    if token is None:
+        return jsonify({"active": False}), 400
+
+    introspection = MyIntrospectionEndpoint(authorization)
+    token_data = introspection.query_token(token, None)
+
+    response = introspection.introspect_token(token_data)
+
+    return jsonify(response)
+
+
 # Main block to run the Flask app
 if __name__ == '__main__':
     # Create admin client
     create_admin_client()
-    #create_client('client_id_test', 'client_secret_test')
     app.run(host='0.0.0.0', port=5003, debug=True)
