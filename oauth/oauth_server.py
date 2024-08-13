@@ -174,12 +174,7 @@ class BearerTokenValidator(_BearerTokenValidator):
         if token:
             return token
         return None
-
-    def request_invalid(self, request):
-        return False
-
-    def token_revoked(self, token):
-        return False
+    
 
 # Resource Protector
 require_oauth = ResourceProtector()
