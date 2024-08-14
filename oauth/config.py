@@ -6,3 +6,7 @@ os.environ['AUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 SECRET_KEY = 'secret'
 DATABASE_URL = 'sqlite:///oauth_db.db'
+
+# Token properties
+TOKEN_EXPIRES_IN = 3600 # seconds
+OAUTH_SERVER_URL = 'http://localhost:5003'

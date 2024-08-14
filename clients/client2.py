@@ -1,7 +1,11 @@
+from urllib.parse import urljoin
 from flask import Flask, jsonify
 import requests
 
 app = Flask(__name__)
+
+oauth_server_url = 'http://localhost:5003'
+resource_server_url = 'http://localhost:5004'
 
 client2_id = 'client2_id_test'
 client2_secret = 'client2_secret_test'
@@ -13,7 +17,7 @@ def get_token():
         global token2
 
         # Obtain the token from the OAuth provider
-        token_url = 'http://192.168.1.86:5003/oauth/token'
+        token_url = urljoin(oauth_server_url, 'oauth/token')
         data = {
             'grant_type': 'client_credentials',
             'client_id': client2_id,
@@ -30,7 +34,7 @@ def get_token():
 def get_client1_resource():
     with app.app_context():
         global token2
-        resource_url = 'http://192.168.1.86:5004/get-client1-resource'
+        resource_url = urljoin(resource_server_url, 'get-client1-resource')
         headers = {
             'Authorization': f'Bearer {token2}'
         }
@@ -43,4 +47,4 @@ def get_client1_resource():
 if __name__ == '__main__':
     get_token()
     print('Successful response:', get_client1_resource())
-    app.run(host="0.0.0.0", port=5005, debug=True)
+    app.run(host="localhost", port=5005, debug=True)

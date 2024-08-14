@@ -9,14 +9,12 @@ from authlib.oauth2.rfc6750 import BearerTokenValidator as _BearerTokenValidator
 from authlib.oauth2.rfc7662 import IntrospectionEndpoint
 
 from config import SECRET_KEY, DATABASE_URL
-from oauth_database_management import session, Client, Token, query_client, save_token 
-
+from oauth_database_management import query_token, save_client, session, Client, Token, query_client, save_token 
 
 
 # Flask app setup
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
-
 # SQLite will be used for the sake of simplicity
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 
@@ -41,13 +39,14 @@ class ClientCredentialsGrant(grants.ClientCredentialsGrant):
         # This grant does not support authorization endpoint requests
         return False
 
+
     def validate_token_request(self):
         """ 
         Validate the token request
         """
         client_id = request.form['client_id']
         client_secret = request.form['client_secret']
-        client = session.query(Client).filter_by(client_id=client_id).first()
+        client = query_client(client_id)
         if client:
             if client.client_secret == client_secret:
                 return client
@@ -58,12 +57,12 @@ class ClientCredentialsGrant(grants.ClientCredentialsGrant):
         raise InvalidGrantError(description='Invalid client credentials')
 
 
-
 # Initialize Authorization Server
 authorization = AuthorizationServer(
     query_client=query_client,
     save_token=save_token,
 )
+
 
 # Register the Client Credentials Grant
 authorization.register_grant(ClientCredentialsGrant)
@@ -83,6 +82,7 @@ def generate_bearer_token(grant_type, client, user=None, scope=None, expires_in=
 
     return token
 
+
 # Register the token generator with the authorization server
 authorization.register_token_generator('default', generate_bearer_token)
 
@@ -96,7 +96,7 @@ class BearerTokenValidator(_BearerTokenValidator):
         super().__init__(token_model=Token)
 
     def authenticate_token(self, token_string):
-        token = session.query(Token).filter_by(access_token=token_string).first()
+        token = query_token(access_token=token_string)
         if token:
             return token
         return None
@@ -125,83 +125,10 @@ def issue_token():
         return jsonify({"error": "Unexpected error occurred"}), 500
 
 
-@app.route('/api/resource', methods=['GET'])
-@require_oauth('profile')
-def api_resource():
-    """
-    Protected Resource
-    """
-    return jsonify({'message': 'Hello, World!'})
-
-
-@app.route('/create_client', methods=['POST'])
-def create_client(cid, csecret):
-    """
-    Create a new client
-    """
-    with app.app_context():
-        client = Client(
-            client_id=cid,
-            client_secret=csecret,
-            grant_type='client_credentials',
-            token_endpoint_auth_method='client_secret_basic'
-        )
-        session.add(client)
-        session.commit()
-        return jsonify({'message': 'Client created successfully!'})
-
-
-@app.route('/register-client', methods=['POST'])
-@require_oauth('profile')
-def register_client():
-    """
-    Register a new client
-    """
-    data = request.get_json()
-    client_id = data.get('client_id')
-    client_secret = data.get('client_secret')
-    grant_type = 'client_credentials'
-    token_endpoint_auth_method = 'client_secret_basic'
-
-    with app.app_context():
-        client = Client(
-            client_id=client_id,
-            client_secret=client_secret,
-            grant_type=grant_type,
-            token_endpoint_auth_method=token_endpoint_auth_method
-        )
-        existing_client = session.query(Client).filter_by(client_id=client_id).first()
-        if existing_client:
-            return jsonify({'message': 'Client already exists!'}), 400
-
-        session.add(client)
-        session.commit()
-        return jsonify({'message': 'Client created successfully!'})
-
-
-def create_admin_client():
-    """
-    Create an admin client
-    """
-    with app.app_context():
-        client = Client(
-            client_id='admin_client',
-            client_secret='admin_secret',
-            grant_type='client_credentials',
-            token_endpoint_auth_method='client_secret_basic'
-        )
-        existing_admin_client = session.query(Client).filter_by(client_id='admin_client').first()
-        if existing_admin_client:
-            return jsonify({'message': 'Admin client already exists!'})
-        session.add(client)
-        session.commit()
-        return jsonify({'message': 'Admin client created successfully!'})
-
-
-class MyIntrospectionEndpoint(IntrospectionEndpoint):
+class IntrospectEndpointImplementation(IntrospectionEndpoint):
     def query_token(self, token, token_type_hint):
         # Example: Replace with actual token lookup in your database
-        token_data = session.query(Token).filter_by(access_token=token).first()
+        token_data = query_token(access_token=token)
         if token_data and not token_data.is_expired():
             return token_data
         return None
@@ -229,7 +156,7 @@ def check_token():
     if token is None:
         return jsonify({"active": False}), 400
 
-    introspection = MyIntrospectionEndpoint(authorization)
+    introspection = IntrospectEndpointImplementation(authorization)
     token_data = introspection.query_token(token, None)
 
     response = introspection.introspect_token(token_data)
@@ -237,8 +164,21 @@ def check_token():
     return jsonify(response)
 
 
-# Main block to run the Flask app
 if __name__ == '__main__':
-    # Create admin client
-    create_admin_client()
-    app.run(host='0.0.0.0', port=5003, debug=True)
+
+    from client_registration import manually_create_client
+    # For the demo purposes, we will create admin client and 2 test clients
+    status = manually_create_client(client_id='admin_client', client_secret='admin_secret')
+    print(status)
+
+    status = manually_create_client(client_id='client_id_test', client_secret='client_secret_test')
+    print(status)
+
+    status = manually_create_client(client_id='client2_id_test', client_secret='client2_secret_test')
+    print(status)
+
+    # Register the client registration blueprint
+    from client_registration import client_registration_bp
+    app.register_blueprint(client_registration_bp)
+
+    app.run(host='localhost', port=5003, debug=True)

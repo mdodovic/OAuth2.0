@@ -56,7 +56,6 @@ class Token(Base):
     
 
 # Initialize the database
-Base.metadata.drop_all(engine, tables=[Token.__table__])
 Base.metadata.create_all(engine)
 
 
@@ -66,6 +65,13 @@ def query_client(client_id):
     Query the client from the database
     """
     return session.query(Client).filter_by(client_id=client_id).first()
+
+
+def query_token(access_token):
+    """
+    Query the token from the database
+    """
+    return session.query(Token).filter_by(access_token=access_token).first()
 
 
 def save_token(token, request):
@@ -83,3 +89,19 @@ def save_token(token, request):
     )
     session.add(item)
     session.commit()
+
+
+def save_client(client):
+    """
+    Save the client to the database. If the client already exists, return a message
+    """
+
+    existing_client = query_client(client.client_id)
+
+    if existing_client is not None:
+        return None
+
+    session.add(client)
+    session.commit()
+
+    return query_client(client.client_id)

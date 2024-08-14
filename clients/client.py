@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+from urllib.parse import urljoin
 from flask import Flask, request, jsonify
 from authlib.integrations.flask_oauth2 import ResourceProtector
 from authlib.oauth2.rfc6750 import BearerTokenValidator
@@ -7,6 +8,8 @@ import requests
 from flask import Flask, jsonify
 
 app = Flask(__name__)
+
+oauth_server_url = 'http://localhost:5003'
 
 client_id = 'client_id_test'
 client_secret = 'client_secret_test'
@@ -18,7 +21,7 @@ def get_token():
         global token 
 
         # Obtain the token from the OAuth provider
-        token_url = 'http://192.168.1.86:5003/oauth/token'
+        token_url = urljoin(oauth_server_url, 'oauth/token')
         data = {
             'grant_type': 'client_credentials',
             'client_id': client_id,
@@ -57,7 +60,7 @@ class IntrospectionToken:
 
 class BearerTokenValidatorInterceptor(_BearerTokenValidator):
     def authenticate_token(self, token_string):
-        introspection_url = 'http://192.168.1.86:5003/oauth/introspect'
+        introspection_url = urljoin(oauth_server_url, 'oauth/introspect')
         headers = {
             # Use Client1's token for authentication of introspection
             'Authorization': f'Bearer {token}'  
@@ -92,4 +95,4 @@ def get_client_resource():
 
 if __name__ == '__main__':
     get_token()
-    app.run(host='0.0.0.0', port=5004, debug=True)
+    app.run(host='localhost', port=5004, debug=True)
