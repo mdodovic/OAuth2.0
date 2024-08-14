@@ -61,8 +61,8 @@ class ClientCredentialsGrant(grants.ClientCredentialsGrant):
         client_id = request.form['client_id']
         client_secret = request.form['client_secret']
         client = query_client(client_id)
-        if client:
-            if client.client_secret == client_secret:
+        if client is not None:
+            if client.check_client_secret(client_secret):
                 return client
             else:
                 InvalidGrantError(description='DEBUG: Client secret does not match')

@@ -1,3 +1,4 @@
+from werkzeug.security import check_password_hash
 from authlib.integrations.sqla_oauth2 import create_query_client_func, create_save_token_func
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
@@ -22,6 +23,12 @@ class Client(Base):
     client_secret = Column(String, nullable=False)
     grant_type = Column(String, nullable=False)
     token_endpoint_auth_method = Column(String, nullable=False)
+
+    def check_client_secret(self, client_secret):
+        """
+        Verify the hashed client secret.
+        """
+        return check_password_hash(self.client_secret, client_secret)
 
 class Token(Base):
     __tablename__ = 'tokens'

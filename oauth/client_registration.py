@@ -1,3 +1,4 @@
+from werkzeug.security import generate_password_hash
 from flask import Blueprint, jsonify, request
 from oauth_database_management import Client, save_client
 from oauth_server import app, require_oauth
@@ -8,12 +9,14 @@ client_registration_bp = Blueprint('client_registration', __name__)
 
 def manually_create_client(client_id, client_secret):
     """
-    Manually create a client. If client is already created, return a message
+    Manually create a client. It is used for the demo purposes, on the start of the server.
+    Better practice is to create clients via authorize endpoint, which is provided bellow. 
+    If client is already created, return a message.
     """
     with app.app_context():
         client = Client(
             client_id=client_id,
-            client_secret=client_secret,
+            client_secret=generate_password_hash(client_secret),
             grant_type='client_credentials',
             token_endpoint_auth_method='client_secret_basic'
         )
@@ -23,7 +26,7 @@ def manually_create_client(client_id, client_secret):
         if client is None:
             return f'Client {client_id} already exists!'
 
-        return f'Client {client} created successfully!'
+        return f'Client {client_id} created successfully!'
 
 
 @client_registration_bp.route('/register-client', methods=['POST'])
@@ -51,7 +54,7 @@ def register_client():
 
     client = Client(
         client_id=client_id,
-        client_secret=client_secret,
+        client_secret=generate_password_hash(client_secret),
         grant_type=grant_type,
         token_endpoint_auth_method=token_endpoint_auth_method
     )
