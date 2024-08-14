@@ -9,4 +9,5 @@ DATABASE_URL = 'sqlite:///oauth_db.db'
 
 # Token properties
 TOKEN_EXPIRES_IN = 3600 # seconds
+DEFAULT_SCOPE = 'profile'
 OAUTH_SERVER_URL = 'http://localhost:5003'

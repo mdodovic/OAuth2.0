@@ -8,7 +8,7 @@ from authlib.oauth2.rfc6749.errors import InvalidGrantError, InsecureTransportEr
 from authlib.oauth2.rfc6750 import BearerTokenValidator as _BearerTokenValidator
 from authlib.oauth2.rfc7662 import IntrospectionEndpoint
 
-from config import SECRET_KEY, DATABASE_URL
+from config import DEFAULT_SCOPE, SECRET_KEY, DATABASE_URL, TOKEN_EXPIRES_IN
 from oauth_database_management import query_token, save_client, session, Client, Token, query_client, save_token 
 
 
@@ -19,9 +19,23 @@ app.config['SECRET_KEY'] = SECRET_KEY
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 
 
+# Initialize Authorization Server
+# The Authorization Server is responsible for managing the authorization and token endpoints
+# It also manages the token generation and introspection endpoints
+# 2 functions are passed to the AuthorizationServer:
+# - query_client: a function that queries the database for a client
+# - save_token: a function that saves the token to the database 
+#   - This function needs request parameter (a http request object)
+authorization = AuthorizationServer(
+    query_client=query_client,
+    save_token=save_token,
+)
+
+
 class ClientCredentialsGrant(grants.ClientCredentialsGrant):
     """
     Client Credentials Grant
+    Used for check if the client is authorized to use the token endpoint
     """
     @staticmethod
     def check_token_endpoint(request):
@@ -57,15 +71,9 @@ class ClientCredentialsGrant(grants.ClientCredentialsGrant):
         raise InvalidGrantError(description='Invalid client credentials')
 
 
-# Initialize Authorization Server
-authorization = AuthorizationServer(
-    query_client=query_client,
-    save_token=save_token,
-)
-
-
 # Register the Client Credentials Grant
 authorization.register_grant(ClientCredentialsGrant)
+
 
 def generate_bearer_token(grant_type, client, user=None, scope=None, expires_in=None, include_refresh_token=True):
     """
@@ -73,12 +81,12 @@ def generate_bearer_token(grant_type, client, user=None, scope=None, expires_in=
     """
     token = {
         'token_type': 'Bearer',
-        'access_token': secrets.token_urlsafe(48),  # Generate a random access token
-        'expires_in': expires_in or 3600,  # Token expiration time (1 hour by default)
-        'scope': scope or 'profile'  # Default to 'profile' if no scope is provided
+        'access_token': secrets.token_urlsafe(48),
+        'expires_in': expires_in or TOKEN_EXPIRES_IN,
+        'scope': scope or DEFAULT_SCOPE
     }
     if include_refresh_token:
-        token['refresh_token'] = secrets.token_urlsafe(48)  # Optionally add a refresh token
+        token['refresh_token'] = secrets.token_urlsafe(48)
 
     return token
 
@@ -87,10 +95,10 @@ def generate_bearer_token(grant_type, client, user=None, scope=None, expires_in=
 authorization.register_token_generator('default', generate_bearer_token)
 
 
-# Custom Bearer Token Validator
-class BearerTokenValidator(_BearerTokenValidator):
+class BearerTokenValidatorImplementation(_BearerTokenValidator):
     """
-    Custom Bearer Token Validator
+    Bearer Token Validator
+    Checks if the token is valid
     """
     def __init__(self):
         super().__init__(token_model=Token)
@@ -104,18 +112,20 @@ class BearerTokenValidator(_BearerTokenValidator):
 
 # Resource Protector
 require_oauth = ResourceProtector()
-bearer_token_validator = BearerTokenValidator()
-require_oauth.register_token_validator(bearer_token_validator)
+require_oauth.register_token_validator(BearerTokenValidatorImplementation())
 
 
-# Routes
 @app.route('/oauth/token', methods=['POST'])
 def issue_token():
     """
-    Issue a token
+    Endpoint to issue a token
     """
-    scope = 'profile'  # Specify the required scope here NOT USED 
     try:
+        # to provide parameters (scope, expires_in, include_refresh_token) to the generate_token method
+        # they cannot be passed directly, in stack call of this method, some of the methods throws 
+        # NotImplementedError, so we need to pass them as for example global variables
+        # for the demo purposes, we will stick to default scope and default expiration time, which
+        # is set in the config.py file
         return authorization.create_token_response()
     except InsecureTransportError:
         return jsonify({"error": "Insecure transport detected. Please use HTTPS or set OAUTHLIB_INSECURE_TRANSPORT=1 for development."}), 400
@@ -148,10 +158,14 @@ class IntrospectEndpointImplementation(IntrospectionEndpoint):
         return {"active": False}
 
 
-# Add the introspection endpoint
 @app.route('/oauth/introspect', methods=['POST'])
 @require_oauth('profile')
 def check_token():
+    """
+    Endpoint to check if a token is valid. 
+    It is used with communication outside of this OAuth server, when 2 parts communicates 
+    and one part needs to check if the token provided by the other part is valid.
+    """
     token = request.form.get('token')
     if token is None:
         return jsonify({"active": False}), 400

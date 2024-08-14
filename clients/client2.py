@@ -31,6 +31,7 @@ def get_token():
         return jsonify(response.json())
 
 
+@app.route('/get-client2-resource')
 def get_client1_resource():
     with app.app_context():
         global token2
