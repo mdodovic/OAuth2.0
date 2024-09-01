@@ -1,5 +1,6 @@
+from functools import wraps
 from urllib.parse import urljoin
-from flask import Flask, jsonify
+from flask import Flask, Response, jsonify
 import requests
 
 app = Flask(__name__)
@@ -28,24 +29,55 @@ def get_token():
 
         print("Client2 Token: ", token2)
 
-        return jsonify(response.json())
+        return token2
+
+
+def token_required(f):
+    """
+    Decorator to ensure that the token is valid before executing the function
+    The flow is to 
+    """	
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        global token2
+
+        # First attempt to execute the original function
+        
+        result = f(*args, **kwargs)
+
+        if result.status_code == 401:  # If unauthorized, refresh token and retry
+            print("Received 401, refreshing token and retrying...")
+            get_token()  # Refresh the token
+            result = f(*args, **kwargs)  # Retry the original function with the new token
+
+        return result
+
+    return decorated_function
 
 
 @app.route('/get-client2-resource')
+@token_required
 def get_client1_resource():
     with app.app_context():
         global token2
+
         resource_url = urljoin(resource_server_url, 'get-client1-resource')
         headers = {
             'Authorization': f'Bearer {token2}'
         }
         resource_response = requests.get(resource_url, headers=headers)
+
         if resource_response.status_code == 200:
-            return resource_response.json().get('message')
-        return 'Failed to get resource from Client1'
+            return jsonify(resource_response.json().get('message'))
+        else:
+            return Response('Failed to get resource from Client1', status=resource_response.status_code)
 
 
 if __name__ == '__main__':
     get_token()
-    print('Successful response:', get_client1_resource())
+    response = get_client1_resource()
+    print('Successful response:', response.get_data(as_text=True))
+    
+    token2 = "1232"
+    
     app.run(host="localhost", port=5005, debug=True)

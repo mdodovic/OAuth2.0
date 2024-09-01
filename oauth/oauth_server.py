@@ -174,7 +174,6 @@ def check_token():
     token_data = introspection.query_token(token, None)
 
     response = introspection.introspect_token(token_data)
-
     return jsonify(response)
 
 
