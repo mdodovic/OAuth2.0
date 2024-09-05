@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+from functools import wraps
 from urllib.parse import urljoin
 from flask import Flask, request, jsonify
 from authlib.integrations.flask_oauth2 import ResourceProtector
@@ -33,6 +34,33 @@ def get_token():
         print("Client1 Token: ", token)
 
         return jsonify(response.json())
+
+
+def token_required(f):
+    """
+    Decorator to ensure that the token is valid before executing the function
+    The flow is to call decorated function, if it returns 401, refresh the token and retry
+    """	
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        global token2
+
+        # First attempt to execute the original function
+        result = f(*args, **kwargs)
+        
+        # if everything is ok, return the result without any changes, like this wrapper does not exist
+
+        # if the result is 401 (Unauthorized), refresh the token and retry
+        if result.status_code == 401:
+            print("Received 401, refreshing token and retrying...")
+            get_token()  # Refresh the token
+            
+            # This is an attempt to execude the original function with the new token
+            result = f(*args, **kwargs)  
+
+        return result
+
+    return decorated_function
 
 
 class IntrospectionToken:
@@ -88,9 +116,10 @@ require_oauth.register_token_validator(BearerTokenValidatorInterceptor())
 
 
 @app.route('/get-client1-resource', methods=['GET'])
+@token_required
 @require_oauth('profile')
 def get_client_resource():
-    return {'message': 'Client 1 resource'}, 200
+    return jsonify({'message': 'Client 1 resource'}), 200
 
 
 if __name__ == '__main__':

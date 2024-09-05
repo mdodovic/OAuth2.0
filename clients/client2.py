@@ -35,20 +35,24 @@ def get_token():
 def token_required(f):
     """
     Decorator to ensure that the token is valid before executing the function
-    The flow is to 
+    The flow is to call decorated function, if it returns 401, refresh the token and retry
     """	
     @wraps(f)
     def decorated_function(*args, **kwargs):
         global token2
 
         # First attempt to execute the original function
-        
         result = f(*args, **kwargs)
+        
+        # if everything is ok, return the result without any changes, like this wrapper does not exist
 
-        if result.status_code == 401:  # If unauthorized, refresh token and retry
+        # if the result is 401 (Unauthorized), refresh the token and retry
+        if result.status_code == 401:
             print("Received 401, refreshing token and retrying...")
             get_token()  # Refresh the token
-            result = f(*args, **kwargs)  # Retry the original function with the new token
+            
+            # This is an attempt to execude the original function with the new token
+            result = f(*args, **kwargs)  
 
         return result
 
