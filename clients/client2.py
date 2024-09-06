@@ -78,8 +78,12 @@ def get_client1_resource():
 if __name__ == '__main__':
     get_token()
     response = get_client1_resource()
-    print('Successful response:', response.get_data(as_text=True))
+    print('Successful response #1:', response.get_data(as_text=True))
     
-    token2 = "1232"
-    
+    # Illustrative example of expired token
+    token2 = "Invalid Token"
+
+    response = get_client1_resource()
+    print('Successful response #2:', response.get_data(as_text=True))
+
     app.run(host="localhost", port=5005, debug=True)
