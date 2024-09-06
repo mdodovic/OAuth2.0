@@ -43,15 +43,14 @@ def token_required(f):
     """	
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        global token2
-
         # First attempt to execute the original function
         result = f(*args, **kwargs)
-        
         # if everything is ok, return the result without any changes, like this wrapper does not exist
 
+        status_code = result[1] if isinstance(result, tuple) else result.status_code
+
         # if the result is 401 (Unauthorized), refresh the token and retry
-        if result.status_code == 401:
+        if status_code == 401:
             print("Received 401, refreshing token and retrying...")
             get_token()  # Refresh the token
             

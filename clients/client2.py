@@ -39,8 +39,6 @@ def token_required(f):
     """	
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        global token2
-
         # First attempt to execute the original function
         result = f(*args, **kwargs)
         
