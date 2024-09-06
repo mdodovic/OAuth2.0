@@ -1,6 +1,15 @@
 # OAuth2.0
 
-This repository demonstrates a simple OAuth2 setup using Flask and Authlib for both the Authorization Server and multiple Resource Servers. It includes examples of Client Credentials Flow, token validation using introspection, and enforcing token protection on resources.
+This project demonstrates a complete OAuth2 authorization and resource server setup using Flask and Authlib, showcasing the Client Credentials flow. It enables secure API interactions between multiple resource servers (Client1 and Client2) by enforcing token validation using OAuth2 tokens. The setup allows:
+
+- Centralized token management through an authorization server.
+- Secure access to protected resources with OAuth2 tokens.
+- Token introspection to validate and manage the lifecycle of access tokens.
+- Automatic token refreshing for seamless interaction between clients.
+
+The project is built to provide a straightforward example of integrating OAuth2 in a microservice-based architecture, where resource servers communicate securely by validating OAuth tokens through a central authorization server.
+
+The implementation follows the Client Credentials Grant flow, where no user interaction is required to obtain tokens—making it ideal for machine-to-machine authentication. This setup can be easily extended or customized to fit various application needs that require secure service communication.
 
 ### Project Structure
 
@@ -40,7 +49,5 @@ This starts Client2's resource server on http://localhost:5005.
 
 Interact with Client1's Resources: You can access the protected resources of Client1 through Client2, where Client2 will automatically handle token refreshing in case of token expiration or unauthorized access.
 
-
-
 ### License
-This project is licensed under the MIT License.
+This project is licensed under the GNU General Public License v3.0.
