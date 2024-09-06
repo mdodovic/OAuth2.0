@@ -14,13 +14,13 @@ The implementation follows the Client Credentials Grant flow, where no user inte
 ### Project Structure
 
 ##### oauth/oauth_server.py
-Implements the OAuth2 authorization server, responsible for issuing tokens and introspecting them.
+Implements the OAuth2 authorization server responsible for issuing tokens and introspecting them.
 
 ##### client/client.py
 A resource server that validates access tokens issued by the authorization server and protects its endpoints.
 
 ##### client/client2.py
-A resource server acting as a client of client1, interacting with its protected resources using OAuth tokens.
+A resource server acts as a client of client1, interacting with its protected resources using OAuth tokens.
 
 ### How to Run
 #### Install the required dependencies:
