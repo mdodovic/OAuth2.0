@@ -54,7 +54,7 @@ def token_required(f):
             print("Received 401, refreshing token and retrying...")
             get_token()  # Refresh the token
             
-            # This is an attempt to execude the original function with the new token
+            # This is an attempt to execute the original function with the new token
             result = f(*args, **kwargs)  
 
         return result
