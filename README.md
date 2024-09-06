@@ -1,4 +1,4 @@
-# OAuth2.0
+# OAuth2 Resource and Authorization Server Example
 
 This project demonstrates a complete OAuth2 authorization and resource server setup using Flask and Authlib, showcasing the Client Credentials flow. It enables secure API interactions between multiple resource servers (Client1 and Client2) by enforcing token validation using OAuth2 tokens. The setup allows:
 
